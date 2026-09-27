@@ -1,0 +1,132 @@
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local active = true
+local stopKey = Enum.KeyCode.Equals
+local searchQueries = {} 
+
+local screenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+screenGui.Name = "TeleportControl"
+screenGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Size = UDim2.new(0, 250, 0, 240)
+mainFrame.Position = UDim2.new(0.5, -125, 0.4, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.Active = true
+mainFrame.Draggable = true 
+
+local title = Instance.new("TextLabel", mainFrame)
+title.Size = UDim2.new(1, 0, 0, 30)
+title.Text = "TP Control (Auto-Reconnect)"
+title.TextColor3 = Color3.new(1, 1, 1)
+title.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+
+local nameInput = Instance.new("TextBox", mainFrame)
+nameInput.Size = UDim2.new(0.9, 0, 0, 30)
+nameInput.Position = UDim2.new(0.05, 0, 0.2, 0)
+nameInput.PlaceholderText = "Press = to close the menu"
+nameInput.Text = ""
+nameInput.ClearTextOnFocus = false 
+
+local function createCoordInput(pos, label)
+    local box = Instance.new("TextBox", mainFrame)
+    box.Size = UDim2.new(0.25, 0, 0, 30)
+    box.Position = pos
+    box.PlaceholderText = label
+    box.Text = "0"
+    box.ClearTextOnFocus = false
+    return box
+end
+
+local xInput = createCoordInput(UDim2.new(0.05, 0, 0.45, 0), "X")
+local yInput = createCoordInput(UDim2.new(0.37, 0, 0.45, 0), "Y")
+local zInput = createCoordInput(UDim2.new(0.7, 0, 0.45, 0), "Z")
+
+local statusLabel = Instance.new("TextLabel", mainFrame)
+statusLabel.Size = UDim2.new(1, 0, 0, 30)
+statusLabel.Position = UDim2.new(0, 0, 0.8, 0)
+statusLabel.Text = "Status: ACTIVE"
+statusLabel.TextColor3 = Color3.new(0, 1, 0)
+statusLabel.BackgroundTransparency = 1
+
+
+nameInput:GetPropertyChangedSignal("Text"):Connect(function()
+    local input = nameInput.Text:lower()
+    if input:gsub("%s+", "") == "" then
+        searchQueries = {}
+    else
+        searchQueries = string.split(input, " ")
+    end
+end)
+
+local heartbeatConnection
+heartbeatConnection = RunService.Heartbeat:Connect(function()
+    if not active or #searchQueries == 0 then return end
+    
+    local offsetX = tonumber(xInput.Text) or 0
+    local offsetY = tonumber(yInput.Text) or 0
+    local offsetZ = tonumber(zInput.Text) or 0
+    
+    local char = LocalPlayer.Character
+    local myPart = char and char:FindFirstChild("HumanoidRootPart")
+    if not myPart then return end
+    
+    local targetCFrame = myPart.CFrame * CFrame.new(offsetX, offsetY, offsetZ)
+    local livingFolder = workspace:FindFirstChild("Living")
+
+    for _, term in ipairs(searchQueries) do
+        if term == "" then continue end
+
+        if term:sub(1, 1) == "!" then
+            local npcQuery = term:sub(2)
+            if npcQuery == "" then continue end
+            
+            if livingFolder then
+                for _, obj in ipairs(livingFolder:GetChildren()) do
+                    if obj:IsA("Model") and not Players:GetPlayerFromCharacter(obj) then
+                        if obj.Name:lower():sub(1, #npcQuery) == npcQuery then
+                            local root = obj:FindFirstChild("HumanoidRootPart")
+                            if root then root.CFrame = targetCFrame end
+                        end
+                    end
+                end
+            end
+        elseif term == "all" then
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character then
+                    local root = p.Character:FindFirstChild("HumanoidRootPart")
+                    if root then root.CFrame = targetCFrame end
+                end
+            end
+        else
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character then
+                    local pName = p.Name:lower()
+                    local dName = p.DisplayName:lower()
+                    if pName:sub(1, #term) == term or dName:sub(1, #term) == term then
+                        local root = p.Character:FindFirstChild("HumanoidRootPart")
+                        if root then root.CFrame = targetCFrame end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+local function stopScript()
+    active = false
+    if heartbeatConnection then heartbeatConnection:Disconnect() end
+    statusLabel.Text = "Poka"
+    statusLabel.TextColor3 = Color3.new(1, 0, 0)
+    task.wait(0.5)
+    screenGui:Destroy()
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == stopKey then
+        stopScript()
+    end
+end)
