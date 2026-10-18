@@ -1,0 +1,19 @@
+plr = game.Players.LocalPlayer
+char = plr.Character
+hrp = char.HumanoidRootPart
+cam = workspace.CurrentCamera
+
+if getgenv().boomecon then getgenv().boomecon:Disconnect() end
+getgenv().boomecon = plr.CharacterAdded:Connect(function(c)
+    char = c
+    hrp = c:WaitForChild("HumanoidRootPart")
+
+    hrp.ChildAdded:Connect(function(p)
+        if p.Name == "BoomerangVelocity" then
+            p:GetPropertyChangedSignal("Velocity"):Connect(function()
+                p.Velocity = cam.CFrame.LookVector*100
+            end)
+        end
+    end)
+end)
+game:GetService("ReplicatedStorage")["ReplicatedStorage Package"]["Remote Events"].SendPacket:FireServer("Respawn")
